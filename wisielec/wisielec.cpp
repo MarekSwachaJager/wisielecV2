@@ -1,37 +1,52 @@
-
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
+#include <map>
 #include <ctime>
 #include <cstdlib>
 #include <algorithm>
+#include <filesystem> // Do sprawdzania œcie¿ki
 
-// Funkcja do wczytywania s³ów z pliku
-std::vector<std::string> loadWords(const std::string & filename) {
-    std::vector<std::string> words;
-    std::ifstream file(filename);
+using namespace std;
+
+// Function to load words from file with categories
+map<string, vector<string>> loadWords(const string& filename) {
+    map<string, vector<string>> categories;
+    ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "B³¹d: Nie mo¿na otworzyæ pliku z list¹ s³ów: " << filename << std::endl;
-        return words;
+        cerr << "Error: Could not open file: " << filename << endl;
+        return {};
     }
-    std::string word;
-    while (file >> word) {
-        words.push_back(word);
+
+    string line, currentCategory;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        if (line.front() == '[' && line.back() == ']') {
+            // New category
+            currentCategory = line.substr(1, line.length() - 2);
+            categories[currentCategory] = {};
+        }
+        else if (!currentCategory.empty()) {
+            // Add word to current category
+            categories[currentCategory].push_back(line);
+        }
     }
+
     file.close();
-    return words;
+    return categories;
 }
 
-// Funkcja do wczytywania listy najlepszych wyników
-std::vector<std::pair<std::string, int>> loadHighScores(const std::string& filename) {
-    std::vector<std::pair<std::string, int>> scores;
-    std::ifstream file(filename);
+// Function to load high scores
+vector<pair<string, int>> loadHighScores(const string& filename) {
+    vector<pair<string, int>> scores;
+    ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Brak pliku z wynikami: " << filename << " - wyniki zostan¹ utworzone po grze.\n";
+        cerr << "High scores file not found. A new one will be created." << endl;
         return scores;
     }
-    std::string name;
+    string name;
     int score;
     while (file >> name >> score) {
         scores.emplace_back(name, score);
@@ -40,44 +55,44 @@ std::vector<std::pair<std::string, int>> loadHighScores(const std::string& filen
     return scores;
 }
 
-// Funkcja do zapisywania najlepszych wyników do pliku
-void saveHighScores(const std::string& filename, const std::vector<std::pair<std::string, int>>& scores) {
-    std::ofstream file(filename);
+// Function to save high scores
+void saveHighScores(const string& filename, const vector<pair<string, int>>& scores) {
+    ofstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "B³¹d: Nie mo¿na zapisaæ wyników do pliku: " << filename << std::endl;
+        cerr << "Error: Could not save high scores to file: " << filename << endl;
         return;
     }
     for (const auto& entry : scores) {
-        file << entry.first << " " << entry.second << std::endl;
+        file << entry.first << " " << entry.second << endl;
     }
     file.close();
 }
 
-// Funkcja losuj¹ca s³owo z listy
-std::string getRandomWord(const std::vector<std::string>& words) {
+// Function to get a random word
+string getRandomWord(const vector<string>& words) {
     srand(static_cast<unsigned>(time(0)));
     return words[rand() % words.size()];
 }
 
-// Funkcja do obliczania punktów
+// Function to calculate the score
 int calculateScore(int attemptsLeft, double timeTaken) {
     return attemptsLeft * 100 - static_cast<int>(timeTaken * 10);
 }
 
-// Funkcja obs³uguj¹ca rozgrywkê
-void playGame(const std::vector<std::string>& words, std::vector<std::pair<std::string, int>>& scores) {
-    std::string word = getRandomWord(words);
-    std::string guessed(word.length(), '_');
+// Main gameplay function
+void playGame(const vector<string>& words, vector<pair<string, int>>& scores) {
+    string word = getRandomWord(words);
+    string guessed(word.length(), '_');
     int attempts = 6;
     bool won = false;
     clock_t start = clock();
 
     while (attempts > 0 && !won) {
-        std::cout << "Has³o: " << guessed << "\n";
-        std::cout << "Pozosta³e próby: " << attempts << "\n";
-        std::cout << "Podaj literê: ";
+        cout << "Word: " << guessed << endl;
+        cout << "Remaining attempts: " << attempts << endl;
+        cout << "Enter a letter: ";
         char guess;
-        std::cin >> guess;
+        cin >> guess;
 
         bool found = false;
         for (size_t i = 0; i < word.length(); ++i) {
@@ -89,56 +104,72 @@ void playGame(const std::vector<std::string>& words, std::vector<std::pair<std::
 
         if (!found) {
             attempts--;
-            std::cout << "B³êdna litera! Straci³eœ próbê.\n";
+            cout << "Incorrect guess! Attempts left: " << attempts << endl;
         }
         else {
-            std::cout << "Trafiona litera!\n";
+            cout << "Correct guess!" << endl;
         }
 
         if (guessed == word) {
             won = true;
-            std::cout << "Brawo! Odgad³eœ s³owo: " << word << "\n";
+            cout << "Congratulations! You guessed the word: " << word << endl;
         }
     }
 
     if (!won) {
-        std::cout << "Przegra³eœ! Szukane s³owo to: " << word << "\n";
+        cout << "You lost! The correct word was: " << word << endl;
     }
 
     clock_t end = clock();
     double timeTaken = double(end - start) / CLOCKS_PER_SEC;
     int score = calculateScore(attempts, timeTaken);
 
-    std::cout << "Twoje punkty: " << score << "\nPodaj swoje imiê: ";
-    std::string playerName;
-    std::cin >> playerName;
+    cout << "Your score: " << score << endl;
+    cout << "Enter your name: ";
+    string playerName;
+    cin >> playerName;
 
     scores.emplace_back(playerName, score);
-    std::sort(scores.begin(), scores.end(), [](const auto& a, const auto& b) {
+    sort(scores.begin(), scores.end(), [](const auto& a, const auto& b) {
         return b.second > a.second;
         });
 
     saveHighScores("high_scores.txt", scores);
 }
 
-// G³ówna funkcja programu
 int main() {
-    std::vector<std::string> words = loadWords("words.txt");
-    if (words.empty()) {
-        std::cerr << "B³¹d: Plik z list¹ s³ów jest pusty lub nie istnieje!\n";
+    // Pe³na œcie¿ka do pliku words.txt
+    string wordFile = "C:\\Users\\Marek\\source\\repos\\wisielec\\x64\\Debug\\words.txt";
+    cout << "Looking for words file at: " << wordFile << endl;
+
+    auto categories = loadWords(wordFile);
+    if (categories.empty()) {
+        cerr << "Error: Word file is empty or does not exist!" << endl;
         return 1;
     }
 
-    std::vector<std::pair<std::string, int>> scores = loadHighScores("high_scores.txt");
+    // Wyœwietlenie dostêpnych kategorii
+    cout << "Available categories:" << endl;
+    for (const auto& category : categories) {
+        cout << "- " << category.first << endl;
+    }
+
+    // Wybór kategorii przez gracza
+    string chosenCategory;
+    cout << "Choose a category: ";
+    cin >> chosenCategory;
+
+    if (categories.find(chosenCategory) == categories.end()) {
+        cerr << "Error: Invalid category!" << endl;
+        return 1;
+    }
+
+    // Pobranie s³ów z wybranej kategorii
+    vector<string> words = categories[chosenCategory];
+
+    // High scores file (mo¿esz zmieniæ œcie¿kê, jeœli potrzebne)
+    vector<pair<string, int>> scores = loadHighScores("high_scores.txt");
 
     playGame(words, scores);
     return 0;
 }
-"""
-
-# Zapisanie kodu do pliku
-file_path_corrected = '/mnt/data/hangman_game_corrected.cpp'
-with open(file_path_corrected, 'w') as file :
-file.write(corrected_code)
-
-file_path_corrected
